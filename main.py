@@ -47,25 +47,48 @@ def solve_with_minres(m,diag,bands,p,rng):
 
     return np.log(resl[-1]/resl[0]),neval
 
+def solve_with_gmres5(m,diag,bands,p,rng):
+    A=make_random_banded(m,diag,bands,p,rng)
+    b=rng.uniform(-1,1,size=m)
+
+    resl=[]
+    def callback(xk):
+        nonlocal resl
+        resl.append(la.norm(b-A@xk))
+
+    neval=0
+    def Amatvec(x):
+        nonlocal neval
+        neval+=1
+        return A@x
+
+
+    x,info=spla.gmres(spla.LinearOperator((m,m),matvec=Amatvec),b,callback=callback,tol=1e-12,maxiter=1000,callback_type="x",restart=5)
+
+    return np.log(resl[-1]/resl[0]),neval
+
+
+
 
 
 m=512
 diag=1e-3
 bands=[1,2,3,50,100]
-
 nsamples=1000
-nats=[]
-nevals=[]
-ps=[]
-for _ in tqdm.tqdm(range(nsamples)):
-    p=rng.uniform(0,1)
-    nat,neval=solve_with_minres(m,diag,bands,p,rng)
-    nats.append(nat)
-    nevals.append(neval)
-    ps.append(p)
+
+for solver in [solve_with_minres,solve_with_gmres5]:
+    nats=[]
+    nevals=[]
+    ps=[]
+    for _ in tqdm.tqdm(range(nsamples)):
+        p=rng.uniform(0,1)
+        nat,neval=solver(m,diag,bands,p,rng)
+        nats.append(nat)
+        nevals.append(neval)
+        ps.append(p)
+    plt.hist(np.array(nats)/np.array(nevals),bins=50)
 
 
 
-plt.scatter(ps,np.array(nats)/np.array(nevals))
-#plt.hist(nats,bins=50)
+plt.legend(["minres","gmres(5)"])
 plt.savefig('nat.png')
